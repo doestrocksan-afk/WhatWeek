@@ -12,12 +12,12 @@ import { getISOWeek, getWeekRange, getWeeksInYear, getDayOfYear, getSpecialDates
 import { toLocalISODate } from '@/lib/dateUtils'
 
 const BASE_URL = 'https://whatweek.uk'
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+export const revalidate = 1800
 
-type Props = {
-  params: Promise<{ lang: string }>
-  searchParams: Promise<{ pais?: string }>
+type Props = { params: Promise<{ lang: string }> }
+
+export async function generateStaticParams() {
+  return LANG_CODES.map(lang => ({ lang }))
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -29,11 +29,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ogUrl = `${BASE_URL}/og?week=${week}&year=${year}&label=Current%20Week&range=${encodeURIComponent(rangeStr)}&type=week`
   return {
     title: `Week ${week} — What Week Is It? | WhatWeek.uk`,
-    description: `It's week ${week} of ${year}: ${rangeStr}. Find UK bank holidays and browse any week of the year.`,
-    alternates: {
-      canonical: `${BASE_URL}/en`,
-      languages: { 'en-GB': `${BASE_URL}/en`, 'en': `${BASE_URL}/en` }
-    },
+    description: `It's week ${week} of ${year}: ${rangeStr}. UK bank holidays for England, Scotland, Wales and Northern Ireland.`,
+    alternates: { canonical: `${BASE_URL}/en`, languages: { 'en-GB': `${BASE_URL}/en` } },
     openGraph: {
       title: `Week ${week}, ${year} — WhatWeek.uk`,
       description: rangeStr,
@@ -47,9 +44,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default async function LangHome({ params, searchParams }: Props) {
+export default async function LangHome({ params }: Props) {
   const { lang } = await params
-  const { pais } = await searchParams
   if (!LANG_CODES.includes(lang as any)) notFound()
 
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -66,10 +62,7 @@ export default async function LangHome({ params, searchParams }: Props) {
   const startStr = toLocalISODate(start)
   const endStr = toLocalISODate(end)
   const rangeStr = `${days[(start.getDay() + 6) % 7]} ${start.getDate()} ${months[start.getMonth()]} – ${days[(end.getDay() + 6) % 7]} ${end.getDate()} ${months[end.getMonth()]}`
-  const validCountry = ['GB','IE','US','AU','CA','NZ'].includes(pais ?? '') ? pais! : 'GB'
-  const pageUrl = `/en`
 
-  // Upcoming UK special dates
   const specials = getSpecialDates(year)
   const upcomingSpecials = [
     { name: 'Easter Sunday', date: specials.easter },
@@ -77,39 +70,21 @@ export default async function LangHome({ params, searchParams }: Props) {
     { name: 'Ascension Day', date: specials.ascension },
     { name: 'Whitsun', date: specials.pentecost },
     { name: 'Christmas Day', date: new Date(year, 11, 25) },
-    { name: "New Year's Day", date: new Date(year + 1, 0, 1) },
   ].filter(s => s.date >= now).slice(0, 4)
 
   const faqs = [
-    {
-      q: `What week is it in ${year}?`,
-      a: `It is currently week ${week} of ${year}. Week ${week} runs from ${start.getDate()} ${months[start.getMonth()]} to ${end.getDate()} ${months[end.getMonth()]} ${year}.`
-    },
-    {
-      q: 'How are week numbers calculated in the UK?',
-      a: 'The UK follows the ISO 8601 standard. Week 1 is the week containing the first Thursday of the year, and weeks always start on Monday.'
-    },
-    {
-      q: `How many weeks are there in ${year}?`,
-      a: `There are ${totalWeeks} weeks in ${year}.`
-    },
-    {
-      q: 'What are the UK bank holidays this year?',
-      a: `Bank holidays in England and Wales include New Year's Day, Good Friday, Easter Monday, Early May Bank Holiday, Spring Bank Holiday, Summer Bank Holiday, Christmas Day and Boxing Day. Scotland and Northern Ireland have additional bank holidays.`
-    },
+    { q: `What week is it in ${year}?`, a: `It is currently week ${week} of ${year}. Week ${week} runs from ${start.getDate()} ${months[start.getMonth()]} to ${end.getDate()} ${months[end.getMonth()]} ${year}.` },
+    { q: 'How are week numbers calculated in the UK?', a: 'The UK follows the ISO 8601 standard. Week 1 is the week containing the first Thursday of the year, and weeks always start on Monday.' },
+    { q: `How many weeks are there in ${year}?`, a: `There are ${totalWeeks} weeks in ${year}.` },
+    { q: 'What are the UK bank holidays this year?', a: `Bank holidays in England and Wales include New Year's Day, Good Friday, Easter Monday, Early May Bank Holiday, Spring Bank Holiday, Summer Bank Holiday, Christmas Day and Boxing Day.` },
   ]
 
   return (
     <>
       <SchemaHomePage lang="en" />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
-        '@context': 'https://schema.org',
-        '@type': 'FAQPage',
-        mainEntity: faqs.map(f => ({
-          '@type': 'Question',
-          name: f.q,
-          acceptedAnswer: { '@type': 'Answer', text: f.a }
-        }))
+        '@context': 'https://schema.org', '@type': 'FAQPage',
+        mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } }))
       })}} />
       <Nav lang="en" />
       <main>
@@ -120,19 +95,15 @@ export default async function LangHome({ params, searchParams }: Props) {
           <h2 className="hero-range">{rangeStr}</h2>
           <p className="hero-year">{year}</p>
         </div>
-
         <SearchBox lang="en" currentYear={year} />
-
         <div className="page-content">
           <section className="card">
             <h2 className="card-label">Bank holidays this week</h2>
-            <HolidayList lang="en" weekStart={startStr} weekEnd={endStr} year={year} activeCountry={validCountry} pageUrl={pageUrl} isCurrentWeek={true} />
+            <HolidayList lang="en" weekStart={startStr} weekEnd={endStr} year={year} activeCountry="GB" pageUrl="/en" isCurrentWeek={true} />
           </section>
-
           <section className="card">
-            <MiniCal lang="en" week={week} year={year} today={today} countryCode={validCountry} />
+            <MiniCal lang="en" week={week} year={year} today={today} countryCode="GB" />
           </section>
-
           <section className="card">
             <h2 className="card-label">Week {week} at a glance</h2>
             <div className="facts-grid">
@@ -142,7 +113,6 @@ export default async function LangHome({ params, searchParams }: Props) {
               <div className="fact"><div className="fact-value">{Math.max(0, daysLeft)}</div><div className="fact-label">days remaining</div></div>
             </div>
           </section>
-
           {upcomingSpecials.length > 0 && (
             <section className="card">
               <h2 className="card-label">Upcoming dates {year}</h2>
@@ -160,27 +130,22 @@ export default async function LangHome({ params, searchParams }: Props) {
               </div>
             </section>
           )}
-
           <section className="card">
             <h2 className="card-label">Browse weeks</h2>
             <div className="quick-links">
               {Array.from({ length: 10 }, (_, i) => week - 3 + i).filter(w => w >= 1 && w <= totalWeeks).map(w => (
-                <Link key={w} href={`/en/${year}/${w}`} className={`quick-link ${w === week ? 'current' : ''}`}>
-                  Week {w}
-                </Link>
+                <Link key={w} href={`/en/${year}/${w}`} className={`quick-link ${w === week ? 'current' : ''}`}>Week {w}</Link>
               ))}
               <Link href={`/en/calendario/${year}`} className="quick-link">Calendar {year} →</Link>
             </div>
           </section>
-
           <section className="card">
             <h2 className="card-label">Frequently asked questions</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
               {faqs.map((faq, i) => (
                 <details key={i} style={{ borderBottom: '1px solid var(--border)', padding: '12px 0' }}>
                   <summary style={{ listStyle: 'none', cursor: 'pointer', fontWeight: 500, color: 'var(--text)', fontSize: 14 }}>
-                    {faq.q}
-                    <span style={{ float: 'right', color: 'var(--muted)' }}>▾</span>
+                    {faq.q}<span style={{ float: 'right', color: 'var(--muted)' }}>▾</span>
                   </summary>
                   <p style={{ marginTop: 10, color: 'var(--muted)', fontSize: 13, lineHeight: 1.7 }}>{faq.a}</p>
                 </details>
